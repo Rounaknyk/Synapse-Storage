@@ -21,12 +21,16 @@ function SimilarityBar({ score }: { score: number }) {
     const pct = Math.round(score * 100);
     const colorClass =
         pct >= 80 ? 'sim-excellent' : pct >= 60 ? 'sim-good' : 'sim-weak';
+    const colorLabel = pct >= 80 ? 'Excellent' : pct >= 60 ? 'Good' : 'Weak';
     return (
         <div className="sim-wrapper">
+            <div className="sim-info">
+                <span className="sim-percentage">{pct}%</span>
+                <span className={`sim-quality ${colorClass}`}>{colorLabel}</span>
+            </div>
             <div className="sim-track">
                 <div className={`sim-fill ${colorClass}`} style={{ width: `${pct}%` }} />
             </div>
-            <span className={`sim-label ${colorClass}`}>{pct}% match</span>
         </div>
     );
 }
@@ -122,11 +126,28 @@ export default function SearchBar() {
 
             {searched && !loading && (
                 <div className="results-section">
-                    <p className="results-count">
-                        {results.length > 0
-                            ? `${results.length} result${results.length > 1 ? 's' : ''} found`
-                            : 'No results found'}
-                    </p>
+                    <div className="results-header">
+                        <p className="results-count">
+                            {results.length > 0
+                                ? `${results.length} result${results.length > 1 ? 's' : ''} found`
+                                : 'No results found'}
+                        </p>
+                        <div className="similarity-legend">
+                            <span className="legend-title">Match Quality:</span>
+                            <span className="legend-item">
+                                <span className="legend-dot sim-excellent"></span>
+                                80-100% Excellent
+                            </span>
+                            <span className="legend-item">
+                                <span className="legend-dot sim-good"></span>
+                                60-79% Good
+                            </span>
+                            <span className="legend-item">
+                                <span className="legend-dot sim-weak"></span>
+                                &lt;60% Weak
+                            </span>
+                        </div>
+                    </div>
                     <div className="results-grid">
                         {results.map((doc, idx) => (
                             <div key={idx} className="result-card glass-card">

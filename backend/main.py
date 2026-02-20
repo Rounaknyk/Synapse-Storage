@@ -176,6 +176,108 @@ async def upload_file(file: UploadFile = File(...)):
             detail=f"Internal server error: {str(e)}"
         )
 
+# Batch upload endpoint
+@app.post("/upload-batch")
+async def upload_batch(files: list[UploadFile] = File(...)):
+    """
+    Upload multiple documents at once
+    - Processes each file independently
+    - Returns results for all files (including failures)
+    """
+    results = []
+    errors = []
+    
+    for file in files:
+        try:
+            # Validate file extension
+            file_extension = os.path.splitext(file.filename)[1].lower()
+            if file_extension not in ['.pdf', '.txt', '.md']:
+                errors.append({
+                    "file_name": file.filename,
+                    "error": "Unsupported file type"
+                })
+                continue
+            
+            # Read file content
+            file_content = await file.read()
+            
+            # Extract text
+            print(f"📄 [{file.filename}] Extracting text...")
+            extracted_text = text_extractor.extract_text(file_content, file_extension)
+            
+            if not extracted_text:
+                errors.append({
+                    "file_name": file.filename,
+                    "error": "Could not extract text"
+                })
+                continue
+            
+            # Classify document
+            print(f"🏷️  [{file.filename}] Classifying...")
+            document_type = classifier_service.classify_document(extracted_text)
+            bucket_name = document_type
+            
+            # Generate embedding
+            print(f"🧠 [{file.filename}] Generating embedding...")
+            embedding = embedding_service.generate_embedding(extracted_text)
+            
+            # Upload to MinIO
+            print(f"☁️  [{file.filename}] Uploading to {bucket_name}...")
+            upload_success = storage_service.upload_file(
+                file_content=file_content,
+                file_name=file.filename,
+                bucket_name=bucket_name
+            )
+            
+            if not upload_success:
+                errors.append({
+                    "file_name": file.filename,
+                    "error": "Failed to upload to storage"
+                })
+                continue
+            
+            # Index in ChromaDB
+            print(f"🔍 [{file.filename}] Indexing...")
+            doc_id = f"{bucket_name}_{file.filename}_{uuid.uuid4().hex[:8]}"
+            metadata = {
+                "file_name": file.filename,
+                "bucket_name": bucket_name,
+                "document_type": document_type,
+                "upload_time": datetime.now().isoformat()
+            }
+            
+            index_success = search_service.add_document(doc_id, embedding, metadata)
+            
+            if not index_success:
+                errors.append({
+                    "file_name": file.filename,
+                    "error": "Failed to index document"
+                })
+                continue
+            
+            print(f"✅ [{file.filename}] Success!")
+            results.append({
+                "success": True,
+                "file_name": file.filename,
+                "document_type": document_type,
+                "bucket_name": bucket_name
+            })
+        
+        except Exception as e:
+            print(f"❌ [{file.filename}] Error: {e}")
+            errors.append({
+                "file_name": file.filename,
+                "error": str(e)
+            })
+    
+    return {
+        "total_files": len(files),
+        "successful": len(results),
+        "failed": len(errors),
+        "results": results,
+        "errors": errors
+    }
+
 # Search endpoint
 @app.post("/search", response_model=list[SearchResult])
 async def search_documents(request: SearchRequest):

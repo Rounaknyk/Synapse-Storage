@@ -6,10 +6,18 @@ const client = axios.create({ baseURL: BASE_URL });
 
 export interface UploadResult {
     success: boolean;
-    message: string;
+    message?: string;
     file_name: string;
     document_type: 'finance' | 'legal' | 'general';
     bucket_name: string;
+}
+
+export interface BatchUploadResponse {
+    total_files: number;
+    successful: number;
+    failed: number;
+    results: UploadResult[];
+    errors: Array<{ file_name: string; error: string }>;
 }
 
 export interface SearchResult {
@@ -46,6 +54,23 @@ export const api = {
         const form = new FormData();
         form.append('file', file);
         const { data } = await client.post<UploadResult>('/upload', form, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (e) => {
+                if (onProgress && e.total) {
+                    onProgress(Math.round((e.loaded / e.total) * 100));
+                }
+            },
+        });
+        return data;
+    },
+
+    async uploadBatch(
+        files: File[],
+        onProgress?: (pct: number) => void
+    ): Promise<BatchUploadResponse> {
+        const form = new FormData();
+        files.forEach((file) => form.append('files', file));
+        const { data } = await client.post<BatchUploadResponse>('/upload-batch', form, {
             headers: { 'Content-Type': 'multipart/form-data' },
             onUploadProgress: (e) => {
                 if (onProgress && e.total) {
