@@ -56,10 +56,11 @@ export const api = {
         return data;
     },
 
-    async searchDocuments(query: string, topK = 5): Promise<SearchResult[]> {
+    async searchDocuments(query: string, topK = 5, minSimilarity = 0.0): Promise<SearchResult[]> {
         const { data } = await client.post<SearchResult[]>('/search', {
             query,
             top_k: topK,
+            min_similarity: minSimilarity,
         });
         return data;
     },

@@ -43,6 +43,7 @@ export default function SearchBar() {
     const { addToast } = useToast();
     const [query, setQuery] = useState('');
     const [topK, setTopK] = useState(5);
+    const [minSimilarity, setMinSimilarity] = useState(0.5); // Default 50% minimum
     const [results, setResults] = useState<SearchResult[]>([]);
     const [loading, setLoading] = useState(false);
     const [searched, setSearched] = useState(false);
@@ -53,9 +54,9 @@ export default function SearchBar() {
         setLoading(true);
         setSearched(true);
         try {
-            const data = await api.searchDocuments(query.trim(), topK);
+            const data = await api.searchDocuments(query.trim(), topK, minSimilarity);
             setResults(data);
-            if (data.length === 0) addToast('info', 'No results found. Try a different query.');
+            if (data.length === 0) addToast('info', 'No results found. Try lowering the similarity threshold or a different query.');
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : 'Search failed.';
             addToast('error', msg);
@@ -102,6 +103,18 @@ export default function SearchBar() {
                         max={10}
                         value={topK}
                         onChange={(e) => setTopK(Number(e.target.value))}
+                        className="topk-slider"
+                    />
+                </div>
+                <div className="search-topk-row">
+                    <label className="topk-label">Min Similarity: <strong>{Math.round(minSimilarity * 100)}%</strong></label>
+                    <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={5}
+                        value={minSimilarity * 100}
+                        onChange={(e) => setMinSimilarity(Number(e.target.value) / 100)}
                         className="topk-slider"
                     />
                 </div>

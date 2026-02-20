@@ -32,6 +32,7 @@ app.add_middleware(
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 3
+    min_similarity: float = 0.0  # Filter results below this threshold (0.0 to 1.0)
 
 class UploadResponse(BaseModel):
     success: bool
@@ -182,7 +183,7 @@ async def search_documents(request: SearchRequest):
     Search for documents using natural language query
     - Converts query to embedding
     - Performs similarity search
-    - Returns top K results
+    - Returns top K results filtered by minimum similarity
     """
     try:
         print(f"🔍 Searching for: '{request.query}'...")
@@ -192,6 +193,11 @@ async def search_documents(request: SearchRequest):
         
         # Search in ChromaDB
         results = search_service.search_similar(query_embedding, top_k=request.top_k)
+        
+        # Filter by minimum similarity threshold
+        if request.min_similarity > 0:
+            results = [r for r in results if r['similarity_score'] >= request.min_similarity]
+            print(f"📊 Filtered to {len(results)} results above {request.min_similarity} similarity")
         
         print(f"✅ Found {len(results)} results\n")
         
