@@ -26,6 +26,7 @@ export interface SearchResult {
     document_type: 'finance' | 'legal' | 'general';
     upload_time: string;
     similarity_score: number;
+    preview?: string; // Optional text snippet returned by backend
 }
 
 export interface DocumentItem {

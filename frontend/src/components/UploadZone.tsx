@@ -44,6 +44,17 @@ export default function UploadZone({ onUploadSuccess }: { onUploadSuccess?: () =
             'application/pdf': ['.pdf'],
             'text/plain': ['.txt'],
             'text/markdown': ['.md'],
+            // Word
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+            'application/msword': ['.doc'],
+            // Excel
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+            'application/vnd.ms-excel': ['.xls'],
+            // CSV
+            'text/csv': ['.csv'],
+            // PowerPoint
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['.pptx'],
+            'application/vnd.ms-powerpoint': ['.ppt'],
         },
         multiple: true,
     });
@@ -63,7 +74,7 @@ export default function UploadZone({ onUploadSuccess }: { onUploadSuccess?: () =
                 onUploadSuccess?.();
             }
             if (res.failed > 0) {
-                addToast('warning', `${res.failed} file(s) failed to upload.`);
+                addToast('error', `${res.failed} file(s) failed to upload.`);
             }
             setSelectedFiles([]);
         } catch (err: unknown) {
@@ -99,7 +110,7 @@ export default function UploadZone({ onUploadSuccess }: { onUploadSuccess?: () =
                     ) : (
                         <>
                             <p className="dropzone-text">Drag &amp; drop files here</p>
-                            <p className="dropzone-subtext">or click to browse — PDF, TXT, MD supported · Multiple files allowed</p>
+                            <p className="dropzone-subtext">PDF · TXT · MD · DOCX · XLSX · CSV · PPTX · Multiple files allowed</p>
                         </>
                     )}
                 </div>
@@ -146,7 +157,7 @@ export default function UploadZone({ onUploadSuccess }: { onUploadSuccess?: () =
                         <CheckCircle size={20} className="result-icon-success" />
                         <p><strong>{result.successful}</strong> of <strong>{result.total_files}</strong> files uploaded successfully</p>
                     </div>
-                    
+
                     {result.results.length > 0 && (
                         <div className="batch-results">
                             <p className="batch-section-title">✅ Successful:</p>
@@ -163,7 +174,7 @@ export default function UploadZone({ onUploadSuccess }: { onUploadSuccess?: () =
                             ))}
                         </div>
                     )}
-                    
+
                     {result.errors.length > 0 && (
                         <div className="batch-errors">
                             <p className="batch-section-title">❌ Failed:</p>

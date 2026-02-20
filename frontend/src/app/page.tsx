@@ -32,10 +32,7 @@ export default function Home() {
             <p className="header-subtitle">Semantic Document Gateway</p>
           </div>
         </div>
-        <div className="header-status">
-          <span className="status-dot" />
-          Backend Online
-        </div>
+
       </header>
 
       {/* ── Tab Nav ── */}

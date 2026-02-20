@@ -160,6 +160,12 @@ export default function SearchBar() {
                                         {TYPE_ICONS[doc.document_type]} {doc.document_type}
                                     </span>
                                     <SimilarityBar score={doc.similarity_score} />
+                                    {doc.preview && (
+                                        <div className="result-preview">
+                                            <span className="result-preview-label">📝 Matched snippet</span>
+                                            <p className="result-preview-text">{doc.preview}</p>
+                                        </div>
+                                    )}
                                     <p className="result-time">🕐 {formatDate(doc.upload_time)}</p>
                                 </div>
                                 <button
