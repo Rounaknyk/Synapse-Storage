@@ -1,0 +1,81 @@
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:8000';
+
+const client = axios.create({ baseURL: BASE_URL });
+
+export interface UploadResult {
+    success: boolean;
+    message: string;
+    file_name: string;
+    document_type: 'finance' | 'legal' | 'general';
+    bucket_name: string;
+}
+
+export interface SearchResult {
+    file_name: string;
+    bucket_name: string;
+    document_type: 'finance' | 'legal' | 'general';
+    upload_time: string;
+    similarity_score: number;
+}
+
+export interface DocumentItem {
+    file_name: string;
+    bucket_name: string;
+    document_type: 'finance' | 'legal' | 'general';
+    upload_time: string;
+}
+
+export interface DocumentsResponse {
+    total_documents: number;
+    documents: DocumentItem[];
+}
+
+export interface DownloadResponse {
+    file_name: string;
+    bucket_name: string;
+    download_url: string;
+}
+
+export const api = {
+    async uploadFile(
+        file: File,
+        onProgress?: (pct: number) => void
+    ): Promise<UploadResult> {
+        const form = new FormData();
+        form.append('file', file);
+        const { data } = await client.post<UploadResult>('/upload', form, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+            onUploadProgress: (e) => {
+                if (onProgress && e.total) {
+                    onProgress(Math.round((e.loaded / e.total) * 100));
+                }
+            },
+        });
+        return data;
+    },
+
+    async searchDocuments(query: string, topK = 5): Promise<SearchResult[]> {
+        const { data } = await client.post<SearchResult[]>('/search', {
+            query,
+            top_k: topK,
+        });
+        return data;
+    },
+
+    async listDocuments(): Promise<DocumentsResponse> {
+        const { data } = await client.get<DocumentsResponse>('/documents');
+        return data;
+    },
+
+    async getDownloadUrl(
+        bucketName: string,
+        fileName: string
+    ): Promise<DownloadResponse> {
+        const { data } = await client.get<DownloadResponse>(
+            `/download/${bucketName}/${fileName}`
+        );
+        return data;
+    },
+};
