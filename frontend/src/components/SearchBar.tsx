@@ -47,7 +47,7 @@ export default function SearchBar() {
     const { addToast } = useToast();
     const [query, setQuery] = useState('');
     const [topK, setTopK] = useState(5);
-    const [minSimilarity, setMinSimilarity] = useState(0.5); // Default 50% minimum
+    const [minSimilarity, setMinSimilarity] = useState(0.6); // Default 60% minimum
     const [results, setResults] = useState<SearchResult[]>([]);
     const [loading, setLoading] = useState(false);
     const [searched, setSearched] = useState(false);

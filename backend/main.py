@@ -47,6 +47,7 @@ class SearchResult(BaseModel):
     document_type: str
     upload_time: str
     similarity_score: float
+    preview: str = ""  # Document text preview
 
 class DownloadResponse(BaseModel):
     file_name: str
@@ -95,11 +96,12 @@ async def upload_file(file: UploadFile = File(...)):
     """
     try:
         # Validate file extension
+        ALLOWED_EXTENSIONS = {'.pdf', '.txt', '.md', '.docx', '.doc', '.xlsx', '.xls', '.csv', '.pptx', '.ppt'}
         file_extension = os.path.splitext(file.filename)[1].lower()
-        if file_extension not in ['.pdf', '.txt', '.md']:
+        if file_extension not in ALLOWED_EXTENSIONS:
             raise HTTPException(
                 status_code=400, 
-                detail="Unsupported file type. Only PDF, TXT, and MD files are allowed."
+                detail=f"Unsupported file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
             )
         
         # Read file content
@@ -139,6 +141,10 @@ async def upload_file(file: UploadFile = File(...)):
                 detail="Failed to upload file to storage"
             )
         
+        # Generate preview snippet (first 200 chars)
+        clean_text = ' '.join(extracted_text.split())  # collapse whitespace
+        preview_snippet = clean_text[:200].rsplit(' ', 1)[0] + '...' if len(clean_text) > 200 else clean_text
+        
         # Store in ChromaDB
         print(f"💾 Indexing in ChromaDB...")
         doc_id = f"{bucket_name}_{file.filename}_{uuid.uuid4().hex[:8]}"
@@ -146,7 +152,8 @@ async def upload_file(file: UploadFile = File(...)):
             "file_name": file.filename,
             "bucket_name": bucket_name,
             "document_type": document_type,
-            "upload_time": datetime.now().isoformat()
+            "upload_time": datetime.now().isoformat(),
+            "preview": preview_snippet
         }
         
         index_success = search_service.add_document(doc_id, embedding, metadata)
@@ -190,8 +197,9 @@ async def upload_batch(files: list[UploadFile] = File(...)):
     for file in files:
         try:
             # Validate file extension
+            ALLOWED_EXTENSIONS = {'.pdf', '.txt', '.md', '.docx', '.doc', '.xlsx', '.xls', '.csv', '.pptx', '.ppt'}
             file_extension = os.path.splitext(file.filename)[1].lower()
-            if file_extension not in ['.pdf', '.txt', '.md']:
+            if file_extension not in ALLOWED_EXTENSIONS:
                 errors.append({
                     "file_name": file.filename,
                     "error": "Unsupported file type"
@@ -236,6 +244,10 @@ async def upload_batch(files: list[UploadFile] = File(...)):
                 })
                 continue
             
+            # Generate preview snippet
+            clean_text = ' '.join(extracted_text.split())
+            preview_snippet = clean_text[:200].rsplit(' ', 1)[0] + '...' if len(clean_text) > 200 else clean_text
+            
             # Index in ChromaDB
             print(f"🔍 [{file.filename}] Indexing...")
             doc_id = f"{bucket_name}_{file.filename}_{uuid.uuid4().hex[:8]}"
@@ -243,7 +255,8 @@ async def upload_batch(files: list[UploadFile] = File(...)):
                 "file_name": file.filename,
                 "bucket_name": bucket_name,
                 "document_type": document_type,
-                "upload_time": datetime.now().isoformat()
+                "upload_time": datetime.now().isoformat(),
+                "preview": preview_snippet
             }
             
             index_success = search_service.add_document(doc_id, embedding, metadata)

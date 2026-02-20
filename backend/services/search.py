@@ -96,7 +96,8 @@ class SearchService:
                         "bucket_name": metadata.get("bucket_name"),
                         "document_type": metadata.get("document_type"),
                         "upload_time": metadata.get("upload_time"),
-                        "similarity_score": round(max(0, min(1, similarity)), 4)  # Clamp between 0-1
+                        "similarity_score": round(max(0, min(1, similarity)), 4),  # Clamp between 0-1
+                        "preview": metadata.get("preview", "")  # Document preview
                     })
             
             return formatted_results
