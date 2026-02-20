@@ -54,6 +54,13 @@ class DownloadResponse(BaseModel):
     bucket_name: str
     download_url: str
 
+class DeleteRequest(BaseModel):
+    bucket_name: str
+    file_name: str
+
+class BatchDeleteRequest(BaseModel):
+    files: list[DeleteRequest]
+
 # Startup event
 @app.on_event("startup")
 async def startup_event():
@@ -379,6 +386,95 @@ async def list_documents():
         raise HTTPException(
             status_code=500,
             detail=f"Failed to list documents: {str(e)}"
+        )
+
+# Delete single document endpoint
+@app.delete("/documents/{bucket_name}/{file_name}")
+async def delete_document(bucket_name: str, file_name: str):
+    """
+    Delete a document from both MinIO storage and ChromaDB index
+    """
+    try:
+        print(f"🗑️  Deleting {file_name} from {bucket_name}...")
+        
+        # Delete from ChromaDB
+        search_success = search_service.delete_document(bucket_name, file_name)
+        
+        # Delete from MinIO
+        storage_success = storage_service.delete_file(bucket_name, file_name)
+        
+        if search_success or storage_success:
+            return {
+                "success": True,
+                "message": f"Successfully deleted {file_name}",
+                "file_name": file_name,
+                "bucket_name": bucket_name,
+                "deleted_from_search": search_success,
+                "deleted_from_storage": storage_success
+            }
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail="Document not found in storage or search index"
+            )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Delete error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete document: {str(e)}"
+        )
+
+# Batch delete endpoint
+@app.post("/documents/delete-batch")
+async def delete_documents_batch(request: BatchDeleteRequest):
+    """
+    Delete multiple documents from both MinIO storage and ChromaDB index
+    """
+    try:
+        print(f"🗑️  Batch deleting {len(request.files)} documents...")
+        
+        # Convert to list of dicts for service methods
+        files_list = [
+            {"bucket_name": f.bucket_name, "file_name": f.file_name}
+            for f in request.files
+        ]
+        
+        # Delete from ChromaDB
+        search_results = search_service.delete_documents(files_list)
+        
+        # Delete from MinIO
+        storage_results = storage_service.delete_files(files_list)
+        
+        # Combine results
+        combined_results = []
+        for i, file_info in enumerate(files_list):
+            combined_results.append({
+                "file_name": file_info["file_name"],
+                "bucket_name": file_info["bucket_name"],
+                "deleted_from_search": search_results[i]["success"],
+                "deleted_from_storage": storage_results[i]["success"],
+                "success": search_results[i]["success"] or storage_results[i]["success"]
+            })
+        
+        successful = sum(1 for r in combined_results if r["success"])
+        
+        print(f"✅ Batch delete complete: {successful}/{len(request.files)} successful")
+        
+        return {
+            "total_files": len(request.files),
+            "successful": successful,
+            "failed": len(request.files) - successful,
+            "results": combined_results
+        }
+    
+    except Exception as e:
+        print(f"❌ Batch delete error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete documents: {str(e)}"
         )
 
 # Reset collection endpoint (for development)

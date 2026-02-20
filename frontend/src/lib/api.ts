@@ -47,6 +47,32 @@ export interface DownloadResponse {
     download_url: string;
 }
 
+export interface DeleteResponse {
+    success: boolean;
+    message: string;
+    file_name: string;
+    bucket_name: string;
+    deleted_from_search: boolean;
+    deleted_from_storage: boolean;
+}
+
+export interface BatchDeleteRequest {
+    files: Array<{ bucket_name: string; file_name: string }>;
+}
+
+export interface BatchDeleteResponse {
+    total_files: number;
+    successful: number;
+    failed: number;
+    results: Array<{
+        file_name: string;
+        bucket_name: string;
+        deleted_from_search: boolean;
+        deleted_from_storage: boolean;
+        success: boolean;
+    }>;
+}
+
 export const api = {
     async uploadFile(
         file: File,
@@ -102,6 +128,24 @@ export const api = {
     ): Promise<DownloadResponse> {
         const { data } = await client.get<DownloadResponse>(
             `/download/${bucketName}/${fileName}`
+        );
+        return data;
+    },
+
+    async deleteDocument(
+        bucketName: string,
+        fileName: string
+    ): Promise<DeleteResponse> {
+        const { data } = await client.delete<DeleteResponse>(
+            `/documents/${bucketName}/${fileName}`
+        );
+        return data;
+    },
+
+    async deleteBatch(request: BatchDeleteRequest): Promise<BatchDeleteResponse> {
+        const { data } = await client.post<BatchDeleteResponse>(
+            '/documents/delete-batch',
+            request
         );
         return data;
     },

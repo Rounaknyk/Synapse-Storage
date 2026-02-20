@@ -104,6 +104,50 @@ class SearchService:
         except Exception as e:
             print(f"Error searching documents: {e}")
             return []
+    
+    def delete_document(self, bucket_name: str, file_name: str):
+        """Delete document(s) from ChromaDB by bucket and file name"""
+        try:
+            # Get all documents
+            all_docs = self.collection.get()
+            
+            # Find document IDs that match bucket_name and file_name
+            ids_to_delete = []
+            for i, metadata in enumerate(all_docs['metadatas']):
+                if metadata.get('bucket_name') == bucket_name and metadata.get('file_name') == file_name:
+                    ids_to_delete.append(all_docs['ids'][i])
+            
+            if ids_to_delete:
+                self.collection.delete(ids=ids_to_delete)
+                print(f"Deleted {len(ids_to_delete)} document(s) for {file_name}")
+                return True
+            else:
+                print(f"No documents found for {file_name} in {bucket_name}")
+                return False
+        except Exception as e:
+            print(f"Error deleting document: {e}")
+            return False
+    
+    def delete_documents(self, files: list[dict]):
+        """Delete multiple documents from ChromaDB
+        
+        Args:
+            files: List of dicts with 'bucket_name' and 'file_name' keys
+        
+        Returns:
+            List of results with success status for each file
+        """
+        results = []
+        for file_info in files:
+            bucket_name = file_info.get('bucket_name')
+            file_name = file_info.get('file_name')
+            success = self.delete_document(bucket_name, file_name)
+            results.append({
+                'bucket_name': bucket_name,
+                'file_name': file_name,
+                'success': success
+            })
+        return results
 
 # Singleton instance
 search_service = SearchService()
