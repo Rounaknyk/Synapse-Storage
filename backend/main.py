@@ -10,6 +10,7 @@ from services.embedding import embedding_service
 from services.storage import storage_service
 from services.search import search_service
 from services.classifier import classifier_service
+from services.gemini_service import gemini_service
 from utils.text_extractor import text_extractor
 
 # Initialize FastAPI app
@@ -141,9 +142,10 @@ async def upload_file(file: UploadFile = File(...)):
                 detail="Failed to upload file to storage"
             )
         
-        # Generate preview snippet (first 200 chars)
+        # Generate preview snippet (first 200 chars) and RAG content (first 1500 chars)
         clean_text = ' '.join(extracted_text.split())  # collapse whitespace
         preview_snippet = clean_text[:200].rsplit(' ', 1)[0] + '...' if len(clean_text) > 200 else clean_text
+        rag_content = clean_text[:1500]  # full context for RAG generation
         
         # Store in ChromaDB
         print(f"💾 Indexing in ChromaDB...")
@@ -153,7 +155,8 @@ async def upload_file(file: UploadFile = File(...)):
             "bucket_name": bucket_name,
             "document_type": document_type,
             "upload_time": datetime.now().isoformat(),
-            "preview": preview_snippet
+            "preview": preview_snippet,
+            "content": rag_content,
         }
         
         index_success = search_service.add_document(doc_id, embedding, metadata)
@@ -324,6 +327,80 @@ async def search_documents(request: SearchRequest):
             status_code=500,
             detail=f"Search failed: {str(e)}"
         )
+
+# RAG Search endpoint — Retrieve → Augment → Generate
+class SmartSearchRequest(BaseModel):
+    query: str
+    top_k: int = 5
+    min_similarity: float = 0.0
+
+class SmartSearchResponse(BaseModel):
+    query: str
+    rag_answer: str          # Gemini-generated answer grounded in retrieved docs
+    sources: list            # The retrieved documents used as context
+
+@app.post("/search/smart", response_model=SmartSearchResponse)
+async def smart_search(request: SmartSearchRequest):
+    """
+    Full RAG pipeline:
+      1. RETRIEVE  — embed query → vector search → top-k document chunks
+      2. AUGMENT   — attach retrieved text as context
+      3. GENERATE  — Gemini reads context and writes a grounded answer
+    """
+    try:
+        print(f"\n🔍 RAG search: '{request.query}'")
+
+        # ── Step 1: RETRIEVE ──────────────────────────────────────
+        query_embedding = embedding_service.generate_query_embedding(request.query)
+        results = search_service.search_similar(query_embedding, top_k=request.top_k)
+
+        if request.min_similarity > 0:
+            results = [r for r in results if r["similarity_score"] >= request.min_similarity]
+
+        print(f"📥 Retrieved {len(results)} document(s) for RAG context")
+
+        # ── Step 2: AUGMENT — fetch FULL document text from MinIO ────
+        context_chunks = []
+        for r in results:
+            file_name = r["file_name"]
+            bucket_name = r["bucket_name"]
+            document_type = r["document_type"]
+
+            # Download raw bytes from MinIO
+            file_bytes = storage_service.download_file(bucket_name, file_name)
+            if file_bytes:
+                ext = os.path.splitext(file_name)[1].lower()
+                full_text = text_extractor.extract_text(file_bytes, ext)
+                # Collapse whitespace but keep full content
+                full_text = ' '.join(full_text.split())
+                print(f"  📄 {file_name}: {len(full_text)} chars extracted for RAG")
+            else:
+                # Fallback to stored content if MinIO download fails
+                full_text = r.get("content", r.get("preview", ""))
+                print(f"  ⚠️  {file_name}: MinIO download failed, using stored excerpt")
+
+            if full_text:
+                context_chunks.append({
+                    "file_name": file_name,
+                    "document_type": document_type,
+                    "content": full_text,
+                })
+
+        # ── Step 3: GENERATE ──────────────────────────────────────
+        rag_answer = gemini_service.generate_rag_answer(request.query, context_chunks)
+
+
+        print(f"✅ RAG complete — {len(results)} sources, answer: {len(rag_answer)} chars\n")
+
+        return SmartSearchResponse(
+            query=request.query,
+            rag_answer=rag_answer,
+            sources=results,
+        )
+
+    except Exception as e:
+        print(f"❌ RAG search error: {e}")
+        raise HTTPException(status_code=500, detail=f"RAG search failed: {str(e)}")
 
 # Download endpoint
 @app.get("/download/{bucket_name}/{file_name}", response_model=DownloadResponse)

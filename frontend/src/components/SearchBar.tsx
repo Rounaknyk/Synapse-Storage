@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Search, Download, Loader2 } from 'lucide-react';
+import { Search, Download, Loader2, Sparkles, BookOpen } from 'lucide-react';
 import { api, SearchResult } from '@/lib/api';
 import { useToast } from './Toast';
 
@@ -19,8 +19,7 @@ const TYPE_ICONS: Record<string, string> = {
 
 function SimilarityBar({ score }: { score: number }) {
     const pct = Math.round(score * 100);
-    const colorClass =
-        pct >= 80 ? 'sim-excellent' : pct >= 60 ? 'sim-good' : 'sim-weak';
+    const colorClass = pct >= 80 ? 'sim-excellent' : pct >= 60 ? 'sim-good' : 'sim-weak';
     const colorLabel = pct >= 80 ? 'Excellent' : pct >= 60 ? 'Good' : 'Weak';
     return (
         <div className="sim-wrapper">
@@ -36,36 +35,50 @@ function SimilarityBar({ score }: { score: number }) {
 }
 
 function formatDate(iso: string) {
-    try {
-        return new Date(iso).toLocaleString();
-    } catch {
-        return iso;
-    }
+    try { return new Date(iso).toLocaleString(); } catch { return iso; }
 }
+
+type SearchPhase = 'idle' | 'searching' | 'generating' | 'done';
 
 export default function SearchBar() {
     const { addToast } = useToast();
     const [query, setQuery] = useState('');
     const [topK, setTopK] = useState(5);
-    const [minSimilarity, setMinSimilarity] = useState(0.6); // Default 60% minimum
-    const [results, setResults] = useState<SearchResult[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [minSimilarity, setMinSimilarity] = useState(0.0);
+    const [ragAnswer, setRagAnswer] = useState<string | null>(null);
+    const [sources, setSources] = useState<SearchResult[]>([]);
+    const [phase, setPhase] = useState<SearchPhase>('idle');
     const [searched, setSearched] = useState(false);
+
+    const loading = phase === 'searching' || phase === 'generating';
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!query.trim()) return;
-        setLoading(true);
+        const trimmed = query.trim();
+        if (!trimmed) return;
+
         setSearched(true);
+        setRagAnswer(null);
+        setSources([]);
+        setPhase('searching');
+
         try {
-            const data = await api.searchDocuments(query.trim(), topK, minSimilarity);
-            setResults(data);
-            if (data.length === 0) addToast('info', 'No results found. Try lowering the similarity threshold or a different query.');
+            // Single backend call: full RAG pipeline (retrieve → augment → generate)
+            const response = await api.smartSearch(trimmed, topK, minSimilarity);
+
+            setPhase('generating');
+            await new Promise((r) => setTimeout(r, 400)); // brief UX pause while "generating" shows
+
+            setRagAnswer(response.rag_answer);
+            setSources(response.sources);
+
+            if (response.sources.length === 0)
+                addToast('info', 'No matching documents found. Try a broader query.');
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : 'Search failed.';
             addToast('error', msg);
         } finally {
-            setLoading(false);
+            setPhase('done');
         }
     };
 
@@ -80,76 +93,89 @@ export default function SearchBar() {
 
     return (
         <div className="search-wrapper">
+
+            {/* ── Search Form ── */}
             <form className="search-form" onSubmit={handleSearch}>
                 <div className="search-input-row">
                     <Search className="search-icon-prefix" size={20} />
                     <input
                         className="search-input"
                         type="text"
-                        placeholder='Search documents... e.g. "tax information from Q4"'
+                        placeholder='Ask anything — "what was our Q3 revenue?" or "find contract termination terms"'
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
                     />
-                    <button
-                        className="btn btn-primary search-btn"
-                        type="submit"
-                        disabled={loading}
-                    >
-                        {loading ? <Loader2 size={18} className="spin" /> : <Search size={18} />}
-                        {loading ? 'Searching...' : 'Search'}
+                    <button className="btn btn-primary search-btn" type="submit" disabled={loading}>
+                        {phase === 'searching' ? (
+                            <><Loader2 size={18} className="spin" /> Retrieving…</>
+                        ) : phase === 'generating' ? (
+                            <><Sparkles size={18} className="spin" /> Generating…</>
+                        ) : (
+                            <><Sparkles size={18} /> Ask AI</>
+                        )}
                     </button>
                 </div>
+
                 <div className="search-topk-row">
-                    <label className="topk-label">Results: <strong>{topK}</strong></label>
-                    <input
-                        type="range"
-                        min={1}
-                        max={10}
-                        value={topK}
-                        onChange={(e) => setTopK(Number(e.target.value))}
-                        className="topk-slider"
-                    />
+                    <label className="topk-label">Top docs: <strong>{topK}</strong></label>
+                    <input type="range" min={1} max={10} value={topK}
+                        onChange={(e) => setTopK(Number(e.target.value))} className="topk-slider" />
                 </div>
                 <div className="search-topk-row">
-                    <label className="topk-label">Min Similarity: <strong>{Math.round(minSimilarity * 100)}%</strong></label>
-                    <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={5}
+                    <label className="topk-label">Min similarity: <strong>{Math.round(minSimilarity * 100)}%</strong></label>
+                    <input type="range" min={0} max={100} step={5}
                         value={minSimilarity * 100}
                         onChange={(e) => setMinSimilarity(Number(e.target.value) / 100)}
-                        className="topk-slider"
-                    />
+                        className="topk-slider" />
                 </div>
             </form>
 
-            {searched && !loading && (
+            {/* ── Phase indicators ── */}
+            {phase === 'searching' && (
+                <div className="search-phase-indicator fade-up">
+                    <Loader2 size={16} className="spin phase-icon-search" />
+                    <span>Retrieving relevant documents via vector search…</span>
+                </div>
+            )}
+            {phase === 'generating' && (
+                <div className="search-phase-indicator fade-up">
+                    <Sparkles size={16} className="spin phase-icon-ai" />
+                    <span>Gemini is reading the documents and generating your answer…</span>
+                </div>
+            )}
+
+            {/* ── RAG Answer Card ── */}
+            {searched && phase === 'done' && ragAnswer && (
+                <div className="rag-answer-card fade-up">
+                    <div className="rag-answer-header">
+                        <Sparkles size={18} className="rag-icon" />
+                        <span className="rag-answer-label">AI Answer</span>
+                        <span className="rag-answer-badge">Based on {sources.length} document{sources.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    <p className="rag-answer-text">{ragAnswer}</p>
+                    <div className="rag-answer-footer">
+                        <BookOpen size={13} />
+                        <span>Answer grounded in your documents · Powered by Gemini</span>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Source Documents ── */}
+            {searched && phase === 'done' && sources.length > 0 && (
                 <div className="results-section">
                     <div className="results-header">
                         <p className="results-count">
-                            {results.length > 0
-                                ? `${results.length} result${results.length > 1 ? 's' : ''} found`
-                                : 'No results found'}
+                            📚 {sources.length} source document{sources.length > 1 ? 's' : ''} used
                         </p>
                         <div className="similarity-legend">
                             <span className="legend-title">Match Quality:</span>
-                            <span className="legend-item">
-                                <span className="legend-dot sim-excellent"></span>
-                                80-100% Excellent
-                            </span>
-                            <span className="legend-item">
-                                <span className="legend-dot sim-good"></span>
-                                60-79% Good
-                            </span>
-                            <span className="legend-item">
-                                <span className="legend-dot sim-weak"></span>
-                                &lt;60% Weak
-                            </span>
+                            <span className="legend-item"><span className="legend-dot sim-excellent" />80-100% Excellent</span>
+                            <span className="legend-item"><span className="legend-dot sim-good" />60-79% Good</span>
+                            <span className="legend-item"><span className="legend-dot sim-weak" />&lt;60% Weak</span>
                         </div>
                     </div>
                     <div className="results-grid">
-                        {results.map((doc, idx) => (
+                        {sources.map((doc, idx) => (
                             <div key={idx} className="result-card glass-card">
                                 <div className="result-card-header">
                                     <span className="result-file-icon">📄</span>
@@ -172,8 +198,7 @@ export default function SearchBar() {
                                     className="btn btn-outline download-btn"
                                     onClick={() => handleDownload(doc.bucket_name, doc.file_name)}
                                 >
-                                    <Download size={16} />
-                                    Download
+                                    <Download size={16} /> Download
                                 </button>
                             </div>
                         ))}
@@ -181,10 +206,23 @@ export default function SearchBar() {
                 </div>
             )}
 
+            {/* ── No results ── */}
+            {searched && phase === 'done' && sources.length === 0 && !ragAnswer && (
+                <div className="search-empty-state">
+                    <p className="empty-hint">No matching documents found. Try uploading some documents first.</p>
+                </div>
+            )}
+
+            {/* ── Empty state ── */}
             {!searched && (
                 <div className="search-empty-state">
+                    <div className="ai-search-hint">
+                        <Sparkles size={20} className="ai-hint-icon" />
+                        <p>Ask a question in plain English — the system retrieves relevant documents,
+                            then Gemini synthesizes a direct answer from their content.</p>
+                    </div>
                     <p className="empty-hint">
-                        💡 Try: <em>&quot;tax documents&quot;</em> · <em>&quot;contract terms&quot;</em> · <em>&quot;product roadmap&quot;</em>
+                        💡 Try: <em>&quot;what was our Q3 revenue?&quot;</em> · <em>&quot;find contract termination clauses&quot;</em> · <em>&quot;what&apos;s on the product roadmap?&quot;</em>
                     </p>
                 </div>
             )}
