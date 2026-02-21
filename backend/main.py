@@ -27,9 +27,9 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
-        "https://synapse-storage-xso1-git-s3-raunaks-projects-7cdf515c.vercel.app",
-        "https://synapse-storage-iota.vercel.app" # Adding the likely production original vercel URL just in case
+        "https://synapse-storage-iota.vercel.app" # The main production URL
     ],
+    allow_origin_regex=r"https://synapse-storage.*\.vercel\.app", # Support all Vercel preview deployments
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
