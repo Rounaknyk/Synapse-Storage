@@ -342,7 +342,7 @@ searchInput.addEventListener('keydown', (e) => {
                     card.querySelector('.source-title').addEventListener('click', () => {
                         chrome.runtime.sendMessage({ action: 'getUrl', bucket, fileName, inline: true }, res => {
                             if (res && res.success) window.open(res.data.download_url, '_blank');
-                            else showStatus('Failed to generate view URL', 'error');
+                            else showStatus(res ? (res.error || 'Failed to generate view URL') : 'Failed to generate view URL', 'error');
                         });
                     });
 
@@ -356,7 +356,7 @@ searchInput.addEventListener('keydown', (e) => {
                                 a.click();
                                 document.body.removeChild(a);
                             } else {
-                                showStatus('Download failed', 'error');
+                                showStatus(res ? (res.error || 'Download failed') : 'Download failed', 'error');
                             }
                         });
                     });
@@ -372,7 +372,7 @@ searchInput.addEventListener('keydown', (e) => {
                                 } else {
                                     card.style.opacity = '1';
                                     card.style.pointerEvents = 'auto';
-                                    showStatus('Delete failed', 'error');
+                                    showStatus(res ? (res.error || 'Delete failed') : 'Delete failed', 'error');
                                 }
                             });
                         }
@@ -380,7 +380,7 @@ searchInput.addEventListener('keydown', (e) => {
                 });
                 statusEl.style.display = 'none';
             } else {
-                showStatus('Search failed', 'error');
+                showStatus(response ? (response.error || 'Search failed') : 'Search failed', 'error');
             }
         });
     }
