@@ -115,13 +115,8 @@ export const api = {
         return data;
     },
 
-    async getDownloadUrl(
-        bucketName: string,
-        fileName: string
-    ): Promise<DownloadResponse> {
-        const { data } = await client.get<DownloadResponse>(
-            `/download/${bucketName}/${fileName}`
-        );
+    async getDownloadUrl(bucket: string, fileName: string, inline = false): Promise<{ download_url: string }> {
+        const { data } = await client.get(`/download/${bucket}/${fileName}?inline=${inline}`);
         return data;
     },
 };
