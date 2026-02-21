@@ -52,4 +52,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
         return true; // Keep channel open
     }
+
+    if (request.action === 'getUrl') {
+        const url = `http://localhost:8000/download/${request.bucket}/${request.fileName}?inline=${request.inline}`;
+        fetch(url)
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to get URL');
+                return res.json();
+            })
+            .then(data => sendResponse({ success: true, data }))
+            .catch(err => sendResponse({ success: false, error: err.message }));
+        return true;
+    }
+
+    if (request.action === 'delete') {
+        fetch(`http://localhost:8000/documents/${request.bucket}/${request.fileName}`, {
+            method: 'DELETE'
+        })
+            .then(res => {
+                if (!res.ok) throw new Error('Delete failed');
+                return res.json();
+            })
+            .then(data => sendResponse({ success: true, data }))
+            .catch(err => sendResponse({ success: false, error: err.message }));
+        return true;
+    }
 });

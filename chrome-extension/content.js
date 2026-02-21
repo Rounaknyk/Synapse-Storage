@@ -138,6 +138,55 @@ style.textContent = `
         margin-bottom: 16px;
     }
     
+    .source-card {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 12px;
+        margin-top: 8px;
+        transition: all 0.2s;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .source-card:hover {
+        border-color: rgba(124, 58, 237, 0.4);
+        background: rgba(124, 58, 237, 0.1);
+    }
+    .source-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    .source-title {
+        font-weight: 500;
+        font-size: 0.85rem;
+        word-break: break-word;
+        color: #f8fafc;
+        cursor: pointer;
+    }
+    .source-title:hover {
+        text-decoration: underline;
+    }
+    .source-actions {
+        display: flex;
+        gap: 6px;
+    }
+    .action-btn {
+        background: rgba(0,0,0,0.3);
+        border: 1px solid rgba(255,255,255,0.1);
+        color: #e2e8f0;
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.75rem;
+        transition: all 0.2s;
+    }
+    .action-btn:hover { background: rgba(255,255,255,0.2); }
+    .action-btn.delete { color: #fca5a5; border-color: rgba(239,68,68,0.3); }
+    .action-btn.delete:hover { background: rgba(239,68,68,0.2); border-color: #ef4444; color: #fecaca; }
+    
     .sources {
         font-size: 0.8rem;
         color: #94a3b8;
@@ -265,15 +314,70 @@ searchInput.addEventListener('keydown', (e) => {
         chrome.runtime.sendMessage({ action: 'search', query }, (response) => {
             if (response.success && response.data) {
                 const { rag_answer, sources } = response.data;
-                const sourceList = sources.map(s => s.file_name).join(', ');
+                const cardsHtml = sources.map(s => `
+                    <div class="source-card" data-bucket="${s.bucket_name}" data-file="${s.file_name}">
+                        <div class="source-header">
+                            <div class="source-title" title="Click to view inline">📄 ${s.file_name}</div>
+                            <div class="source-actions">
+                                <button class="action-btn download" title="Download">⬇️</button>
+                                <button class="action-btn delete" title="Delete">🗑️</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
 
                 dynamicArea.innerHTML = `
                     <div class="rag-answer">
                         <strong style="color:var(--accent-violet-light)">✨ AI Answer:</strong><br><br>
                         ${rag_answer || "No relevant information found."}
-                        ${sources.length > 0 ? `<div class="sources">Sources: ${sourceList}</div>` : ''}
                     </div>
+                    ${sources.length > 0 ? `<div class="sources"><strong>Sources:</strong>${cardsHtml}</div>` : ''}
                 `;
+
+                // Attach Action Listeners
+                dynamicArea.querySelectorAll('.source-card').forEach(card => {
+                    const bucket = card.dataset.bucket;
+                    const fileName = card.dataset.file;
+
+                    card.querySelector('.source-title').addEventListener('click', () => {
+                        chrome.runtime.sendMessage({ action: 'getUrl', bucket, fileName, inline: true }, res => {
+                            if (res && res.success) window.open(res.data.download_url, '_blank');
+                            else showStatus('Failed to generate view URL', 'error');
+                        });
+                    });
+
+                    card.querySelector('.download').addEventListener('click', () => {
+                        chrome.runtime.sendMessage({ action: 'getUrl', bucket, fileName, inline: false }, res => {
+                            if (res && res.success) {
+                                const a = document.createElement('a');
+                                a.href = res.data.download_url;
+                                a.download = fileName;
+                                document.body.appendChild(a);
+                                a.click();
+                                document.body.removeChild(a);
+                            } else {
+                                showStatus('Download failed', 'error');
+                            }
+                        });
+                    });
+
+                    card.querySelector('.delete').addEventListener('click', () => {
+                        if (confirm(`Delete ${fileName}?`)) {
+                            card.style.opacity = '0.5';
+                            card.style.pointerEvents = 'none';
+                            chrome.runtime.sendMessage({ action: 'delete', bucket, fileName }, res => {
+                                if (res && res.success) {
+                                    card.remove();
+                                    showStatus('Deleted successfully', 'success');
+                                } else {
+                                    card.style.opacity = '1';
+                                    card.style.pointerEvents = 'auto';
+                                    showStatus('Delete failed', 'error');
+                                }
+                            });
+                        }
+                    });
+                });
                 statusEl.style.display = 'none';
             } else {
                 showStatus('Search failed', 'error');
