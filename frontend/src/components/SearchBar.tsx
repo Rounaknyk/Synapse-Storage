@@ -85,10 +85,24 @@ export default function SearchBar() {
 
     const handleDownload = async (bucket: string, fileName: string) => {
         try {
-            const { download_url } = await api.getDownloadUrl(bucket, fileName);
-            window.open(download_url, '_blank');
+            const { download_url } = await api.getDownloadUrl(bucket, fileName, false);
+            const a = document.createElement('a');
+            a.href = download_url;
+            a.download = fileName; // Optional, might be governed by header
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         } catch {
             addToast('error', 'Download failed. Please try again.');
+        }
+    };
+
+    const handleViewDocument = async (bucket: string, fileName: string) => {
+        try {
+            const { download_url } = await api.getDownloadUrl(bucket, fileName, true);
+            window.open(download_url, '_blank');
+        } catch {
+            addToast('error', 'Unable to open document. Please try again.');
         }
     };
 
@@ -177,7 +191,7 @@ export default function SearchBar() {
                     </div>
                     <div className="results-grid">
                         {sources.map((doc, idx) => (
-                            <div key={idx} className="result-card glass-card">
+                            <div key={idx} className="result-card glass-card clickable-card" onClick={() => handleViewDocument(doc.bucket_name, doc.file_name)}>
                                 <div className="result-card-header">
                                     <span className="result-file-icon">📄</span>
                                     <span className="result-filename">{doc.file_name}</span>
@@ -197,7 +211,10 @@ export default function SearchBar() {
                                 </div>
                                 <button
                                     className="btn btn-outline download-btn"
-                                    onClick={() => handleDownload(doc.bucket_name, doc.file_name)}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDownload(doc.bucket_name, doc.file_name);
+                                    }}
                                 >
                                     <Download size={16} /> Download
                                 </button>

@@ -410,15 +410,15 @@ async def smart_search(request: SmartSearchRequest):
 
 # Download endpoint
 @app.get("/download/{bucket_name}/{file_name}", response_model=DownloadResponse)
-async def download_file(bucket_name: str, file_name: str):
+async def download_file(bucket_name: str, file_name: str, inline: bool = False):
     """
-    Generate presigned URL for file download
+    Generate presigned URL for file download or inline viewing
     """
     try:
-        print(f"🔗 Generating download URL for {file_name} from {bucket_name}...")
+        print(f"🔗 Generating {'inline ' if inline else 'download '}URL for {file_name} from {bucket_name}...")
         
         # Generate presigned URL
-        download_url = storage_service.generate_presigned_url(bucket_name, file_name)
+        download_url = storage_service.generate_presigned_url(bucket_name, file_name, inline=inline)
         
         if not download_url:
             raise HTTPException(

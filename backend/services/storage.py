@@ -42,13 +42,24 @@ class StorageService:
             print(f"Error uploading file: {e}")
             return False
     
-    def generate_presigned_url(self, bucket_name: str, file_name: str, expiry_hours: int = 1):
-        """Generate presigned URL for file download"""
+    def generate_presigned_url(self, bucket_name: str, file_name: str, expiry_hours: int = 1, inline: bool = False):
+        """Generate presigned URL for file download or inline viewing"""
         try:
+            import mimetypes
+            response_headers = {}
+            
+            if inline:
+                response_headers['response-content-disposition'] = f'inline; filename="{file_name}"'
+                # Force the correct content type so the browser knows how to render it (e.g., application/pdf)
+                content_type, _ = mimetypes.guess_type(file_name)
+                if content_type:
+                    response_headers['response-content-type'] = content_type
+            
             url = self.client.presigned_get_object(
                 bucket_name,
                 file_name,
-                expires=timedelta(hours=expiry_hours)
+                expires=timedelta(hours=expiry_hours),
+                response_headers=response_headers if response_headers else None
             )
             return url
         except S3Error as e:

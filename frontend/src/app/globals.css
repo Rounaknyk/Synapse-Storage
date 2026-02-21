@@ -788,6 +788,18 @@ body {
   opacity: 0.3;
 }
 
+/* ── Clickable Source Cards ── */
+.clickable-card {
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.clickable-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(124, 58, 237, 0.15);
+  border-color: rgba(124, 58, 237, 0.4);
+}
+
 .empty-hint {
   font-size: 0.85rem;
 }
