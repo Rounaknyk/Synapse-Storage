@@ -65,6 +65,36 @@ class StorageService:
         except S3Error as e:
             print(f"Error generating presigned URL: {e}")
             return None
+    
+    def delete_file(self, bucket_name: str, file_name: str):
+        """Delete a file from MinIO bucket"""
+        try:
+            self.client.remove_object(bucket_name, file_name)
+            return True
+        except S3Error as e:
+            print(f"Error deleting file: {e}")
+            return False
+    
+    def delete_files(self, files: list[dict]):
+        """Delete multiple files from MinIO buckets
+        
+        Args:
+            files: List of dicts with 'bucket_name' and 'file_name' keys
+        
+        Returns:
+            List of results with success status for each file
+        """
+        results = []
+        for file_info in files:
+            bucket_name = file_info.get('bucket_name')
+            file_name = file_info.get('file_name')
+            success = self.delete_file(bucket_name, file_name)
+            results.append({
+                'bucket_name': bucket_name,
+                'file_name': file_name,
+                'success': success
+            })
+        return results
 
     def download_file(self, bucket_name: str, file_name: str) -> bytes | None:
         """Download raw file bytes from MinIO — used for full-text RAG context"""
