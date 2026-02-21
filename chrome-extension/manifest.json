@@ -9,7 +9,7 @@
         "storage"
     ],
     "host_permissions": [
-        "http://localhost:8000/*",
+        "https://synapse-backend-cli-production.up.railway.app/*",
         "<all_urls>"
     ],
     "action": {

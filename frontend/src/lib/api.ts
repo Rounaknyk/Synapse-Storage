@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { auth } from './firebase';
 
-const BASE_URL = 'http://localhost:8000';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://synapse-backend-cli-production.up.railway.app';
 
 const client = axios.create({ baseURL: BASE_URL });
 
