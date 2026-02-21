@@ -25,7 +25,11 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://synapse-storage-xso1-git-s3-raunaks-projects-7cdf515c.vercel.app",
+        "https://synapse-storage-iota.vercel.app" # Adding the likely production original vercel URL just in case
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
