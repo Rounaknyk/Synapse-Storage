@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "synapse-storage",
+  "private_key_id": "e1a51926562007bb7a788f5873040d437eb0ce20",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC/WJfLVIN3ixfN\noN6TFZ/rqwWib9cQC2f0Tm382OWdN9GDujyPAkQ9As8/GCrwkO9e3M97SUSBNEga\n2Zg3BXN5ADSnLN+T2dNZUXB1QUeps5AiHXxjKCOIOyHZpNeHRkOb6sUfBkKeFRR7\nWX5WXeWUgIasvNYntUqkBvdlyp4FBUQ+XfE3odSIwrBSkxcZOxZzI8c3hWElxudy\nBAhrmmcrHGcvn9PWGS518SiSPki2sjJNGSVf/w4BuwrNTMYSMNDfpANcq/omBqpB\nWvFpiSfawrR5cPQGxtJh0D9a1zcwbdKohBt1hwdgaMRx0RfeOFL5cYeSVGkCr+Fx\n9Wvl5YMtAgMBAAECggEAC6NFyDYhsNmi3vzTzLpZ+alzNEf9Gpq2/eLvSZufi4pj\nkdF38XK/174eAMZlhjAqfuiLLgJsyjb107w8R8xrE4bxrOFLz+BFvH75iggoZafo\nMkr8z8MXNifyjRw7h5y8a/VBe/uTfa3miwIMbxBS8E9I4aSymcOrAILz9Rr3tXJb\ngA+JH1YJpaPP6zU9MdhnqJxOeaZb59l2Rn21n595QMuXbp028Nd8G+ceYu/O/+I5\nEwis3Ak4ltajaAOEKABjf4a3rw0t7MPzyIhL2lNHtgh7DVNKBen+GkN0X5p9H818\nkXaj6WXAyzajelMIgTdqXNfylhEciQECWH+UW7DQAQKBgQD0apwRkH5yiICPAXez\nWeK9owd7XltcPI2v8Nwy9QmSD9bJtWgvX6S6l/cTkvxaU2JW9jddwnQF3e6aHMAK\nvYwUgjEpDu0lP9ji0hAHkr9pxrRGTsVJOxgCk/y48LhWMBwdyIK+v/ndRtRcrnp2\nKy6FlcLFPtb9ObFBrAOLcMPdLQKBgQDIahrxEOf52V9x6upLyULtfgiS4jsAyYl9\nYlQkPuBqOB5sZX7VA1Y0tZCbOSz/fdKOkwMu+Lyznb8xtR1a5V8FEq1ZGSd0kMSL\nKSdvxaGp9LPNvuEk37hQ4R9E9zs4MyVeHEyLl0JEHPSytzs3+CY3eNteInENHEJb\n2uMM0cv+AQKBgQCCr+ZXNe2GjBpBXMWGLo+gWmWLv34WKYKRCraSwJandLSiEc9t\nVTSdWNgRrUwld+RjHy+ngGvNH0ePO8QregJGjP6AN6zxd9weG7fadMrIYijOVxwB\n9gj2h+5fbMcDvqGqAyZ1m+ycNl0iWWC9goVThCoqkVke+RQgSztx+Y+g2QKBgAMr\nCjn9Vm1wrj2SxRllmRVABMqtoNkmVnIQ99uK0ula8cAs6pBbeSVkKWEKyldPmeB/\nGnHHpNQCDl+uyUQClDn0TaE28JS7JSA+Ck2OBjw1jhIWjmCS2MsOg/wHHHyK8nBG\naj9aqMWC36tjkiAUYCZIVs9qI/ddFv90ulodhugBAoGAbNNu4HXsZF5bMOIqmbYF\nx+Ac/kYXH0FCH42ELUChtfv/wkrNh5HimBe+2lpXP8s3PlBDI2KMmHCYLmWT075+\nKmL6w2Q8OMZLDr4NPx5dN+k8C5GiMA9ah1T2jMrVDPgNbqkiNBLLkR6cCwmpjZz3\nit+NDGusNSxv2zvzJczdRJw=\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@synapse-storage.iam.gserviceaccount.com",
+  "client_id": "109007313471403164350",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40synapse-storage.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

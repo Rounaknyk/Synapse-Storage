@@ -1,8 +1,25 @@
 import axios from 'axios';
+import { auth } from './firebase';
 
 const BASE_URL = 'http://localhost:8000';
 
 const client = axios.create({ baseURL: BASE_URL });
+
+// Automatically attach Firebase ID Token to every request
+client.interceptors.request.use(async (config) => {
+    const user = auth.currentUser;
+    if (user) {
+        try {
+            const token = await user.getIdToken();
+            config.headers.Authorization = `Bearer ${token}`;
+        } catch (error) {
+            console.error('Error fetching Firebase token:', error);
+        }
+    }
+    return config;
+}, (error) => {
+    return Promise.reject(error);
+});
 
 export interface UploadResult {
     success: boolean;

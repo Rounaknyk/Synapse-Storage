@@ -4,6 +4,8 @@ import { useState } from 'react';
 import UploadZone from '@/components/UploadZone';
 import SearchBar from '@/components/SearchBar';
 import DocumentList from '@/components/DocumentList';
+import { useAuth } from '@/context/AuthContext';
+import { LogOut } from 'lucide-react';
 
 type Tab = 'upload' | 'search' | 'documents';
 
@@ -16,6 +18,7 @@ const TABS: { id: Tab; label: string; icon: string }[] = [
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>('upload');
   const [docRefreshKey, setDocRefreshKey] = useState(0);
+  const { user, logout } = useAuth();
 
   const handleUploadSuccess = () => {
     setDocRefreshKey((k) => k + 1);
@@ -33,6 +36,14 @@ export default function Home() {
           </div>
         </div>
 
+        {user && (
+          <div className="user-profile">
+            <span className="user-email">{user.email}</span>
+            <button onClick={logout} className="action-btn delete" style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'transparent', border: 'none' }} title="Logout">
+              <LogOut size={16} /> Logout
+            </button>
+          </div>
+        )}
       </header>
 
       {/* ── Tab Nav ── */}

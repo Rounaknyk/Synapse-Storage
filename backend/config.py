@@ -27,6 +27,9 @@ class Settings:
     # Embedding Model
     EMBEDDING_MODEL = "all-MiniLM-L6-v2"
     EMBEDDING_DIMENSION = 384  # Dimension for all-MiniLM-L6-v2
+
+    # Firebase Authentication
+    FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "firebase-admin.json")
     
     # Classification Keywords
     CLASSIFICATION_KEYWORDS = {

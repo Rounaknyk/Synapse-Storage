@@ -54,9 +54,11 @@ class S3StorageService:
             print(f"❌ Error uploading file to S3: {e}")
             return False
     
-    def generate_presigned_url(self, bucket_name: str, file_name: str, expiry_hours: int = 1):
-        """Generate presigned URL for file download"""
+    def generate_presigned_url(self, bucket_name: str, file_name: str, expiry_hours: int = 1, inline: bool = False):
+        """Generate presigned URL for file download or inline viewing"""
         try:
+            import mimetypes
+            
             # Get actual bucket name from mapping
             actual_bucket = settings.BUCKETS.get(bucket_name, bucket_name)
             
@@ -65,14 +67,24 @@ class S3StorageService:
             print(f"   Region: {settings.AWS_REGION}")
             print(f"   Bucket: {actual_bucket}")
             print(f"   Key: {file_name}")
+            print(f"   Inline: {inline}")
+            
+            # Setup response overrides for inline viewing
+            params = {
+                'Bucket': actual_bucket,
+                'Key': file_name
+            }
+            
+            if inline:
+                params['ResponseContentDisposition'] = f'inline; filename="{file_name}"'
+                content_type, _ = mimetypes.guess_type(file_name)
+                if content_type:
+                    params['ResponseContentType'] = content_type
             
             # Generate presigned URL - will automatically use regional endpoint due to Config
             url = self.s3_client.generate_presigned_url(
                 'get_object',
-                Params={
-                    'Bucket': actual_bucket,
-                    'Key': file_name
-                },
+                Params=params,
                 ExpiresIn=int(timedelta(hours=expiry_hours).total_seconds())
             )
             
