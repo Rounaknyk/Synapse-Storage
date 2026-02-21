@@ -1,0 +1,11 @@
+venv/
+__pycache__/
+*.pyc
+.env
+.pytest_cache/
+.coverage
+chroma_db/
+sample_docs/
+firebase-admin.json
+.git/
+.DS_Store
