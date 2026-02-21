@@ -42,17 +42,70 @@ class StorageService:
             print(f"Error uploading file: {e}")
             return False
     
-    def generate_presigned_url(self, bucket_name: str, file_name: str, expiry_hours: int = 1):
-        """Generate presigned URL for file download"""
+    def generate_presigned_url(self, bucket_name: str, file_name: str, expiry_hours: int = 1, inline: bool = False):
+        """Generate presigned URL for file download or inline viewing"""
         try:
+            import mimetypes
+            response_headers = {}
+            
+            if inline:
+                response_headers['response-content-disposition'] = f'inline; filename="{file_name}"'
+                # Force the correct content type so the browser knows how to render it (e.g., application/pdf)
+                content_type, _ = mimetypes.guess_type(file_name)
+                if content_type:
+                    response_headers['response-content-type'] = content_type
+            
             url = self.client.presigned_get_object(
                 bucket_name,
                 file_name,
-                expires=timedelta(hours=expiry_hours)
+                expires=timedelta(hours=expiry_hours),
+                response_headers=response_headers if response_headers else None
             )
             return url
         except S3Error as e:
             print(f"Error generating presigned URL: {e}")
+            return None
+    
+    def delete_file(self, bucket_name: str, file_name: str):
+        """Delete a file from MinIO bucket"""
+        try:
+            self.client.remove_object(bucket_name, file_name)
+            return True
+        except S3Error as e:
+            print(f"Error deleting file: {e}")
+            return False
+    
+    def delete_files(self, files: list[dict]):
+        """Delete multiple files from MinIO buckets
+        
+        Args:
+            files: List of dicts with 'bucket_name' and 'file_name' keys
+        
+        Returns:
+            List of results with success status for each file
+        """
+        results = []
+        for file_info in files:
+            bucket_name = file_info.get('bucket_name')
+            file_name = file_info.get('file_name')
+            success = self.delete_file(bucket_name, file_name)
+            results.append({
+                'bucket_name': bucket_name,
+                'file_name': file_name,
+                'success': success
+            })
+        return results
+
+    def download_file(self, bucket_name: str, file_name: str) -> bytes | None:
+        """Download raw file bytes from MinIO — used for full-text RAG context"""
+        try:
+            response = self.client.get_object(bucket_name, file_name)
+            data = response.read()
+            response.close()
+            response.release_conn()
+            return data
+        except S3Error as e:
+            print(f"Error downloading file {file_name}: {e}")
             return None
 
 # Singleton instance

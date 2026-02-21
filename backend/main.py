@@ -1,4 +1,4 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
@@ -7,9 +7,12 @@ import uuid
 
 # Import services
 from services.embedding import embedding_service
-from services.storage import storage_service
-from services.search import search_service
+from services.s3_storage import s3_storage_service as storage_service
+from services.qdrant_search import qdrant_search_service as search_service
 from services.classifier import classifier_service
+from services.gemini_service import gemini_service
+from services.auth import get_current_user
+from services.firestore import firestore_service
 from utils.text_extractor import text_extractor
 
 # Initialize FastAPI app
@@ -32,6 +35,7 @@ app.add_middleware(
 class SearchRequest(BaseModel):
     query: str
     top_k: int = 3
+    min_similarity: float = 0.0  # Filter results below this threshold (0.0 to 1.0)
 
 class UploadResponse(BaseModel):
     success: bool
@@ -46,11 +50,19 @@ class SearchResult(BaseModel):
     document_type: str
     upload_time: str
     similarity_score: float
+    preview: str = ""  # Document text preview
 
 class DownloadResponse(BaseModel):
     file_name: str
     bucket_name: str
     download_url: str
+
+class DeleteRequest(BaseModel):
+    bucket_name: str
+    file_name: str
+
+class BatchDeleteRequest(BaseModel):
+    files: list[DeleteRequest]
 
 # Startup event
 @app.on_event("startup")
@@ -64,9 +76,8 @@ async def startup_event():
     print("📦 Initializing MinIO buckets...")
     storage_service.initialize_buckets()
     
-    # Initialize ChromaDB collection
-    print("\n🔍 Initializing ChromaDB collection...")
-    search_service.initialize_collection()
+    # Skip Qdrant initialization at startup (will initialize on first use)
+    print("\n🔍 Qdrant will initialize on first use...")
     
     print("\n" + "="*50)
     print("✅ System ready!")
@@ -83,7 +94,7 @@ async def root():
 
 # Upload endpoint
 @app.post("/upload", response_model=UploadResponse)
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
     """
     Upload a document (PDF, TXT, MD)
     - Extracts text
@@ -94,11 +105,12 @@ async def upload_file(file: UploadFile = File(...)):
     """
     try:
         # Validate file extension
+        ALLOWED_EXTENSIONS = {'.pdf', '.txt', '.md', '.docx', '.doc', '.xlsx', '.xls', '.csv', '.pptx', '.ppt'}
         file_extension = os.path.splitext(file.filename)[1].lower()
-        if file_extension not in ['.pdf', '.txt', '.md']:
+        if file_extension not in ALLOWED_EXTENSIONS:
             raise HTTPException(
                 status_code=400, 
-                detail="Unsupported file type. Only PDF, TXT, and MD files are allowed."
+                detail=f"Unsupported file type. Allowed: {', '.join(ALLOWED_EXTENSIONS)}"
             )
         
         # Read file content
@@ -123,11 +135,14 @@ async def upload_file(file: UploadFile = File(...)):
         print(f"🧠 Generating embedding...")
         embedding = embedding_service.generate_embedding(extracted_text)
         
+        # Protect S3 object by prepending user id
+        s3_file_key = f"{user['uid']}/{file.filename}"
+        
         # Upload to MinIO
         print(f"☁️  Uploading to MinIO bucket: {bucket_name}...")
         upload_success = storage_service.upload_file(
             file_content=file_content,
-            file_name=file.filename,
+            file_name=s3_file_key,
             bucket_name=bucket_name,
             content_type=file.content_type or "application/octet-stream"
         )
@@ -138,17 +153,35 @@ async def upload_file(file: UploadFile = File(...)):
                 detail="Failed to upload file to storage"
             )
         
+        # Generate preview snippet (first 200 chars) and RAG content (first 1500 chars)
+        clean_text = ' '.join(extracted_text.split())  # collapse whitespace
+        preview_snippet = clean_text[:200].rsplit(' ', 1)[0] + '...' if len(clean_text) > 200 else clean_text
+        rag_content = clean_text[:1500]  # full context for RAG generation
+        
         # Store in ChromaDB
         print(f"💾 Indexing in ChromaDB...")
-        doc_id = f"{bucket_name}_{file.filename}_{uuid.uuid4().hex[:8]}"
-        metadata = {
-            "file_name": file.filename,
+        doc_id = f"{user['uid']}_{bucket_name}_{file.filename}_{uuid.uuid4().hex[:8]}"
+        
+        # Only store what's absolutely necessary for search retrieval in Qdrant
+        qdrant_metadata = {
+            "user_id": user["uid"],
             "bucket_name": bucket_name,
             "document_type": document_type,
-            "upload_time": datetime.now().isoformat()
+            "content": rag_content, # Keep content for RAG
         }
         
-        index_success = search_service.add_document(doc_id, embedding, metadata)
+        index_success = search_service.add_document(doc_id, embedding, qdrant_metadata)
+        
+        # Store metadata in Firestore
+        print(f"🗄️  Saving metadata to Firestore...")
+        firestore_success = firestore_service.add_document_metadata(
+            doc_id=doc_id,
+            user_id=user["uid"],
+            file_name=file.filename,
+            bucket_name=bucket_name,
+            document_type=document_type,
+            preview=preview_snippet
+        )
         
         if not index_success:
             raise HTTPException(
@@ -175,14 +208,134 @@ async def upload_file(file: UploadFile = File(...)):
             detail=f"Internal server error: {str(e)}"
         )
 
+# Batch upload endpoint
+@app.post("/upload-batch")
+async def upload_batch(files: list[UploadFile] = File(...), user: dict = Depends(get_current_user)):
+    """
+    Upload multiple documents at once
+    - Processes each file independently
+    - Returns results for all files (including failures)
+    """
+    results = []
+    errors = []
+    
+    for file in files:
+        try:
+            # Validate file extension
+            ALLOWED_EXTENSIONS = {'.pdf', '.txt', '.md', '.docx', '.doc', '.xlsx', '.xls', '.csv', '.pptx', '.ppt'}
+            file_extension = os.path.splitext(file.filename)[1].lower()
+            if file_extension not in ALLOWED_EXTENSIONS:
+                errors.append({
+                    "file_name": file.filename,
+                    "error": "Unsupported file type"
+                })
+                continue
+            
+            # Read file content
+            file_content = await file.read()
+            
+            # Extract text
+            print(f"📄 [{file.filename}] Extracting text...")
+            extracted_text = text_extractor.extract_text(file_content, file_extension)
+            
+            if not extracted_text:
+                errors.append({
+                    "file_name": file.filename,
+                    "error": "Could not extract text"
+                })
+                continue
+            
+            # Classify document
+            print(f"🏷️  [{file.filename}] Classifying...")
+            document_type = classifier_service.classify_document(extracted_text)
+            bucket_name = document_type
+            
+            # Generate embedding
+            print(f"🧠 [{file.filename}] Generating embedding...")
+            embedding = embedding_service.generate_embedding(extracted_text)
+            
+            # Protect S3 object
+            s3_file_key = f"{user['uid']}/{file.filename}"
+            
+            # Upload to MinIO
+            print(f"☁️  [{file.filename}] Uploading to {bucket_name}...")
+            upload_success = storage_service.upload_file(
+                file_content=file_content,
+                file_name=s3_file_key,
+                bucket_name=bucket_name
+            )
+            
+            if not upload_success:
+                errors.append({
+                    "file_name": file.filename,
+                    "error": "Failed to upload to storage"
+                })
+                continue
+            
+            # Generate preview snippet
+            clean_text = ' '.join(extracted_text.split())
+            preview_snippet = clean_text[:200].rsplit(' ', 1)[0] + '...' if len(clean_text) > 200 else clean_text
+            
+            # Index in ChromaDB
+            print(f"🔍 [{file.filename}] Indexing...")
+            doc_id = f"{user['uid']}_{bucket_name}_{file.filename}_{uuid.uuid4().hex[:8]}"
+            qdrant_metadata = {
+                "user_id": user["uid"],
+                "bucket_name": bucket_name,
+                "document_type": document_type,
+            }
+            
+            index_success = search_service.add_document(doc_id, embedding, qdrant_metadata)
+            
+            # Store metadata in Firestore
+            print(f"🗄️  [{file.filename}] Saving to Firestore...")
+            firestore_success = firestore_service.add_document_metadata(
+                doc_id=doc_id,
+                user_id=user["uid"],
+                file_name=file.filename,
+                bucket_name=bucket_name,
+                document_type=document_type,
+                preview=preview_snippet
+            )
+            
+            if not index_success:
+                errors.append({
+                    "file_name": file.filename,
+                    "error": "Failed to index document"
+                })
+                continue
+            
+            print(f"✅ [{file.filename}] Success!")
+            results.append({
+                "success": True,
+                "file_name": file.filename,
+                "document_type": document_type,
+                "bucket_name": bucket_name
+            })
+        
+        except Exception as e:
+            print(f"❌ [{file.filename}] Error: {e}")
+            errors.append({
+                "file_name": file.filename,
+                "error": str(e)
+            })
+    
+    return {
+        "total_files": len(files),
+        "successful": len(results),
+        "failed": len(errors),
+        "results": results,
+        "errors": errors
+    }
+
 # Search endpoint
 @app.post("/search", response_model=list[SearchResult])
-async def search_documents(request: SearchRequest):
+async def search_documents(request: SearchRequest, user: dict = Depends(get_current_user)):
     """
     Search for documents using natural language query
     - Converts query to embedding
     - Performs similarity search
-    - Returns top K results
+    - Returns top K results filtered by minimum similarity
     """
     try:
         print(f"🔍 Searching for: '{request.query}'...")
@@ -190,10 +343,45 @@ async def search_documents(request: SearchRequest):
         # Generate query embedding
         query_embedding = embedding_service.generate_query_embedding(request.query)
         
-        # Search in ChromaDB
-        results = search_service.search_similar(query_embedding, top_k=request.top_k)
+        # Search in ChromaDB (scoped to user_id)
+        # Note: We now just get back user_id, bucket_name, document_type, and ID from Qdrant.
+        # We need to fetch the rest (like file_name, preview, etc) from Firestore
+        qdrant_results = search_service.search_similar(query_embedding, top_k=request.top_k, user_id=user["uid"])
         
-        print(f"✅ Found {len(results)} results\n")
+        # Filter by minimum similarity threshold
+        if request.min_similarity > 0:
+            qdrant_results = [r for r in qdrant_results if r['similarity_score'] >= request.min_similarity]
+            print(f"📊 Filtered to {len(qdrant_results)} results above {request.min_similarity} similarity")
+        
+        # Hydrate with full metadata from Firestore
+        results = []
+        if qdrant_results:
+            qdrant_ids = [r['id'] for r in qdrant_results]
+            print(f"🗄️  Fetching metadata for {len(qdrant_ids)} documents from Firestore...")
+            
+            # Fetch from Firestore
+            firestore_docs = firestore_service.get_documents_by_ids(qdrant_ids)
+            
+            # Create a lookup map
+            doc_map = {doc['qdrant_id']: doc for doc in firestore_docs if 'qdrant_id' in doc}
+            
+            # Combine the semantic score with the rich metadata
+            for q_res in qdrant_results:
+                f_doc = doc_map.get(q_res['id'])
+                if f_doc:
+                    results.append({
+                        "file_name": f_doc.get('file_name', q_res.get('file_name', 'Unknown')),
+                        "bucket_name": f_doc.get('bucket_name', q_res.get('bucket_name', 'Unknown')),
+                        "document_type": f_doc.get('document_type', q_res.get('document_type', 'Unknown')),
+                        "upload_time": f_doc.get('upload_time', ''),
+                        "similarity_score": q_res['similarity_score'],
+                        "preview": f_doc.get('preview', '')
+                    })
+                else:
+                    # Fallback if Firestore record is missing but Qdrant point exists
+                    print(f"⚠️  Missing Firestore record for Qdrant ID: {q_res['id']}")
+        
+        print(f"✅ Found {len(results)} hydrated results\n")
         
         return results
     
@@ -204,17 +392,116 @@ async def search_documents(request: SearchRequest):
             detail=f"Search failed: {str(e)}"
         )
 
-# Download endpoint
-@app.get("/download/{bucket_name}/{file_name}", response_model=DownloadResponse)
-async def download_file(bucket_name: str, file_name: str):
+# RAG Search endpoint — Retrieve → Augment → Generate
+class SmartSearchRequest(BaseModel):
+    query: str
+    top_k: int = 5
+    min_similarity: float = 0.0
+
+class SmartSearchResponse(BaseModel):
+    query: str
+    rag_answer: str          # Gemini-generated answer grounded in retrieved docs
+    sources: list            # The retrieved documents used as context
+
+@app.post("/search/smart", response_model=SmartSearchResponse)
+async def smart_search(request: SmartSearchRequest, user: dict = Depends(get_current_user)):
     """
-    Generate presigned URL for file download
+    Full RAG pipeline:
+      1. RETRIEVE  — embed query → vector search → top-k document chunks
+      2. AUGMENT   — attach retrieved text as context
+      3. GENERATE  — Gemini reads context and writes a grounded answer
     """
     try:
-        print(f"🔗 Generating download URL for {file_name} from {bucket_name}...")
+        print(f"\n🔍 RAG search: '{request.query}'")
+
+        # ── Step 1: RETRIEVE ──────────────────────────────────────
+        query_embedding = embedding_service.generate_query_embedding(request.query)
+        # Search scoped to user_id
+        qdrant_results = search_service.search_similar(query_embedding, top_k=request.top_k, user_id=user["uid"])
+
+        if request.min_similarity > 0:
+            qdrant_results = [r for r in qdrant_results if r["similarity_score"] >= request.min_similarity]
+
+        print(f"📥 Retrieved {len(qdrant_results)} document(s) for RAG context")
+
+        # Hydrate from Firestore
+        qdrant_ids = [r['id'] for r in qdrant_results]
+        firestore_docs = firestore_service.get_documents_by_ids(qdrant_ids)
+        doc_map = {doc['qdrant_id']: doc for doc in firestore_docs if 'qdrant_id' in doc}
+        
+        # Build hydrated sources array for the frontend
+        hydrated_sources = []
+        for q_res in qdrant_results:
+            f_doc = doc_map.get(q_res['id'])
+            if f_doc:
+                hydrated_sources.append({
+                    "file_name": f_doc.get('file_name'),
+                    "bucket_name": f_doc.get('bucket_name'),
+                    "document_type": f_doc.get('document_type'),
+                    "upload_time": f_doc.get('upload_time', ''),
+                    "similarity_score": q_res['similarity_score'],
+                    "preview": f_doc.get('preview', ''),
+                    "content": q_res.get('content', '') # Content is still in Qdrant
+                })
+
+        # ── Step 2: AUGMENT — fetch FULL document text from MinIO ────
+        context_chunks = []
+        for src in hydrated_sources:
+            file_name = src["file_name"]
+            bucket_name = src["bucket_name"]
+            document_type = src["document_type"]
+
+            # Download raw bytes from S3 (using exact key)
+            s3_file_key = f"{user['uid']}/{file_name}"
+            file_bytes = storage_service.download_file(bucket_name, s3_file_key)
+            if file_bytes:
+                ext = os.path.splitext(file_name)[1].lower()
+                full_text = text_extractor.extract_text(file_bytes, ext)
+                # Collapse whitespace but keep full content
+                full_text = ' '.join(full_text.split())
+                print(f"  📄 {file_name}: {len(full_text)} chars extracted for RAG")
+            else:
+                # Fallback to stored content if MinIO download fails
+                full_text = src.get("content", src.get("preview", ""))
+                print(f"  ⚠️  {file_name}: MinIO download failed, using stored excerpt")
+
+            if full_text:
+                context_chunks.append({
+                    "file_name": file_name,
+                    "document_type": document_type,
+                    "content": full_text,
+                })
+
+        # ── Step 3: GENERATE ──────────────────────────────────────
+        rag_answer = gemini_service.generate_rag_answer(request.query, context_chunks)
+
+
+        print(f"✅ RAG complete — {len(hydrated_sources)} sources, answer: {len(rag_answer)} chars\n")
+
+        return SmartSearchResponse(
+            query=request.query,
+            rag_answer=rag_answer,
+            sources=hydrated_sources,
+        )
+
+    except Exception as e:
+        print(f"❌ RAG search error: {e}")
+        raise HTTPException(status_code=500, detail=f"RAG search failed: {str(e)}")
+
+# Download endpoint
+@app.get("/download/{bucket_name}/{file_name}", response_model=DownloadResponse)
+async def download_file(bucket_name: str, file_name: str, inline: bool = False, user: dict = Depends(get_current_user)):
+    """
+    Generate presigned URL for file download or inline viewing
+    """
+    try:
+        print(f"🔗 Generating {'inline ' if inline else 'download '}URL for {file_name} from {bucket_name}...")
+        
+        # Scoped to user id in S3
+        s3_file_key = f"{user['uid']}/{file_name}"
         
         # Generate presigned URL
-        download_url = storage_service.generate_presigned_url(bucket_name, file_name)
+        download_url = storage_service.generate_presigned_url(bucket_name, s3_file_key, inline=inline)
         
         if not download_url:
             raise HTTPException(
@@ -241,23 +528,122 @@ async def download_file(bucket_name: str, file_name: str):
 
 # List all documents (bonus endpoint for debugging)
 @app.get("/documents")
-async def list_documents():
+async def list_documents(user: dict = Depends(get_current_user)):
     """
     List all indexed documents
     """
     try:
-        collection = search_service.collection
-        if collection:
-            data = collection.get()
-            return {
-                "total_documents": len(data['ids']) if data['ids'] else 0,
-                "documents": data['metadatas'] if data['metadatas'] else []
-            }
-        return {"total_documents": 0, "documents": []}
+        print(f"🗄️  Fetching documents for user {user['uid']} from Firestore...")
+        documents = firestore_service.get_user_documents(user_id=user["uid"])
+        return {
+            "total_documents": len(documents),
+            "documents": documents
+        }
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=f"Failed to list documents: {str(e)}"
+        )
+
+# Delete single document endpoint
+@app.delete("/documents/{bucket_name}/{file_name}")
+async def delete_document(bucket_name: str, file_name: str, user: dict = Depends(get_current_user)):
+    """
+    Delete a document from both MinIO storage and ChromaDB index
+    """
+    try:
+        print(f"🗑️  Deleting {file_name} from {bucket_name}...")
+        
+        # Delete from ChromaDB
+        search_success = search_service.delete_document(bucket_name, file_name, user_id=user["uid"])
+        
+        # Delete from Firestore
+        firestore_success = firestore_service.delete_document(user["uid"], bucket_name, file_name)
+        
+        # Delete from MinIO
+        s3_file_key = f"{user['uid']}/{file_name}"
+        storage_success = storage_service.delete_file(bucket_name, s3_file_key)
+        
+        if search_success or storage_success or firestore_success:
+            return {
+                "success": True,
+                "message": f"Successfully deleted {file_name}",
+                "file_name": file_name,
+                "bucket_name": bucket_name,
+                "deleted_from_search": search_success,
+                "deleted_from_firestore": firestore_success,
+                "deleted_from_storage": storage_success
+            }
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail="Document not found in storage or search index"
+            )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Delete error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete document: {str(e)}"
+        )
+
+# Batch delete endpoint
+@app.post("/documents/delete-batch")
+async def delete_documents_batch(request: BatchDeleteRequest, user: dict = Depends(get_current_user)):
+    """
+    Delete multiple documents from both S3 storage and Qdrant index
+    """
+    try:
+        print(f"🗑️  Batch deleting {len(request.files)} documents...")
+        
+        # Convert to list of dicts for service methods
+        files_list = [
+            {"bucket_name": f.bucket_name, "file_name": f.file_name}
+            for f in request.files
+        ]
+        
+        # Delete from ChromaDB
+        search_results = search_service.delete_documents(files_list, user_id=user["uid"])
+        
+        # Delete from Firestore
+        firestore_results = firestore_service.delete_documents(files_list, user_id=user["uid"])
+        
+        # Rewrite to correct S3 keys
+        s3_files_list = [{"bucket_name": f["bucket_name"], "file_name": f"{user['uid']}/{f['file_name']}"} for f in files_list]
+        
+        # Delete from MinIO
+        storage_results = storage_service.delete_files(s3_files_list)
+        
+        # Combine results
+        combined_results = []
+        for i, file_info in enumerate(files_list):
+            combined_results.append({
+                "file_name": file_info["file_name"],
+                "bucket_name": file_info["bucket_name"],
+                "deleted_from_search": search_results[i]["success"],
+                "deleted_from_firestore": firestore_results[i]["success"],
+                "deleted_from_storage": storage_results[i]["success"],
+                "success": search_results[i]["success"] or storage_results[i]["success"] or firestore_results[i]["success"]
+            })
+        
+        successful = sum(1 for r in combined_results if r["success"])
+        
+        print(f"✅ Batch delete complete: {successful}/{len(request.files)} successful")
+        
+        return {
+            "total_files": len(request.files),
+            "successful": successful,
+            "failed": len(request.files) - successful,
+            "results": combined_results
+        }
+    
+    except Exception as e:
+        print(f"❌ Batch delete error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete documents: {str(e)}"
         )
 
 # Reset collection endpoint (for development)

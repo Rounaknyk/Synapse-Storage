@@ -4,21 +4,33 @@ from dotenv import load_dotenv
 load_dotenv()
 
 class Settings:
-    # MinIO Configuration
-    MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "localhost:9000")
-    MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
-    MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY", "minioadmin")
-    MINIO_SECURE = os.getenv("MINIO_SECURE", "false").lower() == "true"
+    # AWS S3 Configuration
+    AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID", "")
+    AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+    AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+    AWS_S3_FINANCE_BUCKET = os.getenv("AWS_S3_FINANCE_BUCKET", "synapse-finance-prod")
+    AWS_S3_LEGAL_BUCKET = os.getenv("AWS_S3_LEGAL_BUCKET", "synapse-legal-prod")
+    AWS_S3_GENERAL_BUCKET = os.getenv("AWS_S3_GENERAL_BUCKET", "synapse-general-prod")
     
-    # Buckets
-    BUCKETS = ["finance", "legal", "general"]
+    # Bucket mapping (category → actual bucket name)
+    BUCKETS = {
+        "finance": AWS_S3_FINANCE_BUCKET,
+        "legal": AWS_S3_LEGAL_BUCKET,
+        "general": AWS_S3_GENERAL_BUCKET
+    }
     
-    # ChromaDB Configuration
-    CHROMA_PERSIST_DIR = "./chroma_db"
-    CHROMA_COLLECTION_NAME = "documents"
+    # Qdrant Configuration
+    QDRANT_URL = os.getenv("QDRANT_URL", "")
+    QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
+    QDRANT_COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME", "documents")
     
     # Embedding Model
     EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+    EMBEDDING_DIMENSION = 384  # Dimension for all-MiniLM-L6-v2
+
+    # Firebase Authentication
+    FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "firebase-admin.json")
+    FIREBASE_CREDENTIALS_BASE64 = os.getenv("FIREBASE_CREDENTIALS_BASE64", "")
     
     # Classification Keywords
     CLASSIFICATION_KEYWORDS = {
