@@ -10,7 +10,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 return;
             }
 
-            fetch('http://localhost:8000/search/smart', {
+            fetch('https://synapse-backend-cli-production.up.railway.app/search/smart', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -50,7 +50,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 const formData = new FormData();
                 formData.append('file', blob, request.fileName);
 
-                fetch('http://localhost:8000/upload', {
+                fetch('https://synapse-backend-cli-production.up.railway.app/upload', {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${result.synapse_token}`
@@ -78,7 +78,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 return;
             }
 
-            const url = `http://localhost:8000/download/${request.bucket}/${request.fileName}?inline=${request.inline}`;
+            const url = `https://synapse-backend-cli-production.up.railway.app/download/${request.bucket}/${request.fileName}?inline=${request.inline}`;
             fetch(url, {
                 headers: {
                     'Authorization': `Bearer ${result.synapse_token}`
@@ -101,7 +101,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 return;
             }
 
-            fetch(`http://localhost:8000/documents/${request.bucket}/${request.fileName}`, {
+            fetch(`https://synapse-backend-cli-production.up.railway.app/documents/${request.bucket}/${request.fileName}`, {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${result.synapse_token}`
