@@ -19,8 +19,9 @@ const TYPE_ICONS: Record<string, string> = {
 
 function SimilarityBar({ score }: { score: number }) {
     const pct = Math.round(score * 100);
-    const colorClass = pct >= 80 ? 'sim-excellent' : pct >= 60 ? 'sim-good' : 'sim-weak';
-    const colorLabel = pct >= 80 ? 'Excellent' : pct >= 60 ? 'Good' : 'Weak';
+    // Updated thresholds: 70%+ Excellent, 40-69% Good, below 40% Weak
+    const colorClass = pct >= 70 ? 'sim-excellent' : pct >= 40 ? 'sim-good' : 'sim-weak';
+    const colorLabel = pct >= 70 ? 'Excellent' : pct >= 40 ? 'Good' : 'Weak';
     return (
         <div className="sim-wrapper">
             <div className="sim-info">
@@ -44,7 +45,7 @@ export default function SearchBar() {
     const { addToast } = useToast();
     const [query, setQuery] = useState('');
     const [topK, setTopK] = useState(5);
-    const [minSimilarity, setMinSimilarity] = useState(0.0);
+    const [minSimilarity, setMinSimilarity] = useState(0.35); // Lowered from 0.6 to 0.35 for better semantic search
     const [ragAnswer, setRagAnswer] = useState<string | null>(null);
     const [sources, setSources] = useState<SearchResult[]>([]);
     const [phase, setPhase] = useState<SearchPhase>('idle');

@@ -7,8 +7,8 @@ import uuid
 
 # Import services
 from services.embedding import embedding_service
-from services.storage import storage_service
-from services.search import search_service
+from services.s3_storage import s3_storage_service as storage_service
+from services.qdrant_search import qdrant_search_service as search_service
 from services.classifier import classifier_service
 from services.gemini_service import gemini_service
 from utils.text_extractor import text_extractor
@@ -74,9 +74,8 @@ async def startup_event():
     print("📦 Initializing MinIO buckets...")
     storage_service.initialize_buckets()
     
-    # Initialize ChromaDB collection
-    print("\n🔍 Initializing ChromaDB collection...")
-    search_service.initialize_collection()
+    # Skip Qdrant initialization at startup (will initialize on first use)
+    print("\n🔍 Qdrant will initialize on first use...")
     
     print("\n" + "="*50)
     print("✅ System ready!")
@@ -451,14 +450,11 @@ async def list_documents():
     List all indexed documents
     """
     try:
-        collection = search_service.collection
-        if collection:
-            data = collection.get()
-            return {
-                "total_documents": len(data['ids']) if data['ids'] else 0,
-                "documents": data['metadatas'] if data['metadatas'] else []
-            }
-        return {"total_documents": 0, "documents": []}
+        documents = search_service.get_all_documents()
+        return {
+            "total_documents": len(documents),
+            "documents": documents
+        }
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -508,7 +504,7 @@ async def delete_document(bucket_name: str, file_name: str):
 @app.post("/documents/delete-batch")
 async def delete_documents_batch(request: BatchDeleteRequest):
     """
-    Delete multiple documents from both MinIO storage and ChromaDB index
+    Delete multiple documents from both S3 storage and Qdrant index
     """
     try:
         print(f"🗑️  Batch deleting {len(request.files)} documents...")
