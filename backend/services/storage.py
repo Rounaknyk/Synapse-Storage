@@ -85,5 +85,17 @@ class StorageService:
             })
         return results
 
+    def download_file(self, bucket_name: str, file_name: str) -> bytes | None:
+        """Download raw file bytes from MinIO — used for full-text RAG context"""
+        try:
+            response = self.client.get_object(bucket_name, file_name)
+            data = response.read()
+            response.close()
+            response.release_conn()
+            return data
+        except S3Error as e:
+            print(f"Error downloading file {file_name}: {e}")
+            return None
+
 # Singleton instance
 storage_service = StorageService()

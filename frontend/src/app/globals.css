@@ -1023,3 +1023,322 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* ───── AI Query Enhancement ───── */
+
+/* Rewrite pill — shows original → optimized */
+.ai-rewrite-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: rgba(124, 58, 237, 0.1);
+  border: 1px solid rgba(124, 58, 237, 0.35);
+  border-radius: 30px;
+  font-size: 0.82rem;
+  flex-wrap: wrap;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.ai-rewrite-icon {
+  color: var(--accent-violet-light);
+  flex-shrink: 0;
+}
+
+.ai-rewrite-original {
+  color: var(--text-secondary);
+  text-decoration: line-through;
+  font-style: italic;
+}
+
+.ai-rewrite-arrow {
+  color: var(--accent-violet-light);
+  flex-shrink: 0;
+}
+
+.ai-rewrite-result {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.ai-rewrite-badge {
+  margin-left: 4px;
+  padding: 2px 10px;
+  background: linear-gradient(135deg, var(--accent-violet), var(--accent-violet-light));
+  color: #fff;
+  border-radius: 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Phase status indicators */
+.search-phase-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-size: 0.875rem;
+  padding: 4px 0;
+}
+
+.phase-icon-ai {
+  color: var(--accent-violet-light);
+}
+
+.phase-icon-search {
+  color: var(--accent-blue);
+}
+
+/* Empty state — AI hint block */
+.ai-search-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 20px;
+  background: rgba(124, 58, 237, 0.07);
+  border: 1px solid rgba(124, 58, 237, 0.2);
+  border-radius: var(--radius);
+  text-align: left;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.ai-hint-icon {
+  color: var(--accent-violet-light);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+/* Legend styles (results header) */
+.results-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.similarity-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.legend-title {
+  font-weight: 600;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.sim-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.sim-percentage {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.sim-quality {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+
+.sim-quality.sim-excellent {
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--sim-excellent);
+}
+
+.sim-quality.sim-good {
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--sim-good);
+}
+
+.sim-quality.sim-weak {
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--sim-weak);
+}
+
+/* Batch upload result styles */
+.upload-result-batch {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: var(--radius);
+  animation: fadeUp 0.3s ease;
+}
+
+.batch-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.9rem;
+}
+
+.batch-section-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.batch-results,
+.batch-errors {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.error-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ef4444;
+  font-size: 0.82rem;
+}
+
+.selected-files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.selected-file-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.83rem;
+}
+
+.file-name {
+  flex: 1;
+  word-break: break-word;
+}
+
+.file-size {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.remove-file-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: color var(--transition);
+}
+
+.remove-file-btn:hover {
+  color: #ef4444;
+}
+
+/* ───── RAG Answer Card ───── */
+.rag-answer-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 24px;
+  background: linear-gradient(135deg,
+      rgba(124, 58, 237, 0.12) 0%,
+      rgba(59, 130, 246, 0.08) 100%);
+  border: 1px solid rgba(124, 58, 237, 0.4);
+  border-radius: var(--radius);
+  position: relative;
+  overflow: hidden;
+  animation: fadeUp 0.4s ease;
+}
+
+.rag-answer-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent-violet), var(--accent-blue), var(--accent-violet-light));
+}
+
+.rag-answer-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rag-icon {
+  color: var(--accent-violet-light);
+  flex-shrink: 0;
+}
+
+.rag-answer-label {
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent-violet-light);
+}
+
+.rag-answer-badge {
+  margin-left: auto;
+  padding: 3px 10px;
+  background: rgba(124, 58, 237, 0.2);
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  border-radius: 12px;
+  font-size: 0.72rem;
+  color: var(--accent-violet-light);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.rag-answer-text {
+  font-size: 1rem;
+  color: var(--text-primary);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.rag-answer-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+  margin-top: 2px;
+}

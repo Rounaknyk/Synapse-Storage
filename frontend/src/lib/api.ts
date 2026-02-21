@@ -29,6 +29,12 @@ export interface SearchResult {
     preview?: string; // Optional text snippet returned by backend
 }
 
+export interface SmartSearchResponse {
+    query: string;
+    rag_answer: string;      // Gemini-generated answer grounded in retrieved docs
+    sources: SearchResult[]; // The retrieved documents used as context
+}
+
 export interface DocumentItem {
     file_name: string;
     bucket_name: string;
@@ -110,6 +116,19 @@ export const api = {
 
     async searchDocuments(query: string, topK = 5, minSimilarity = 0.0): Promise<SearchResult[]> {
         const { data } = await client.post<SearchResult[]>('/search', {
+            query,
+            top_k: topK,
+            min_similarity: minSimilarity,
+        });
+        return data;
+    },
+
+    async smartSearch(
+        query: string,
+        topK = 5,
+        minSimilarity = 0.0
+    ): Promise<SmartSearchResponse> {
+        const { data } = await client.post<SmartSearchResponse>('/search/smart', {
             query,
             top_k: topK,
             min_similarity: minSimilarity,
