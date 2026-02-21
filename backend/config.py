@@ -30,6 +30,7 @@ class Settings:
 
     # Firebase Authentication
     FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "firebase-admin.json")
+    FIREBASE_CREDENTIALS_BASE64 = os.getenv("FIREBASE_CREDENTIALS_BASE64", "")
     
     # Classification Keywords
     CLASSIFICATION_KEYWORDS = {

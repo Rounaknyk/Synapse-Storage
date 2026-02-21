@@ -1,4 +1,6 @@
 import os
+import json
+import base64
 import firebase_admin
 from firebase_admin import credentials, auth
 from fastapi import Request, HTTPException
@@ -6,7 +8,14 @@ from config import settings
 
 # Initialize Firebase Admin SDK
 try:
-    if os.path.exists(settings.FIREBASE_CREDENTIALS_PATH):
+    if settings.FIREBASE_CREDENTIALS_BASE64:
+        # Decode base64 string to JSON dict
+        cred_json = base64.b64decode(settings.FIREBASE_CREDENTIALS_BASE64).decode('utf-8')
+        cred_dict = json.loads(cred_json)
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+        print("✓ Firebase Admin initialized via BASE64 Environment Variable")
+    elif os.path.exists(settings.FIREBASE_CREDENTIALS_PATH):
         cred = credentials.Certificate(settings.FIREBASE_CREDENTIALS_PATH)
         firebase_admin.initialize_app(cred)
         print(f"✓ Firebase Admin initialized via {settings.FIREBASE_CREDENTIALS_PATH}")
